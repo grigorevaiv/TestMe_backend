@@ -1,4 +1,8 @@
-static/
+static/*
+static/*
+!static/.gitkeep
+!static/tmp/
+!static/tmp/.gitkeep
 venv
 __pycache__/
 .env
