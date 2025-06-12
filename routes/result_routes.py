@@ -6,7 +6,8 @@ from models.interpretation_model import Interpretation
 from models.result_model import ScaleResult, TestResult, UserAnswerSchema
 from controllers.result_controller import save_test_results, calculate_and_store_test_result
 from models.scale_model import Scale
-from models.test_model import Test 
+from models.test_model import Test
+from models.user_model import User 
 
 result_routes = APIRouter(dependencies=[Depends(get_current_admin)])
 

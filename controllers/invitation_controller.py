@@ -15,20 +15,26 @@ load_dotenv()
 INVITE_LINK_BASE_URL = os.getenv("INVITE_LINK_BASE_URL")
 
 def create_test_invitation(user_email: str, user_id: int, test_id: int, db: Session):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    test = db.query(Test).filter(Test.id == test_id).first()
+    if not test:
+        raise HTTPException(status_code=404, detail="Test not found")
+
     existing = db.query(Invitation).filter(
         Invitation.user_id == user_id,
         Invitation.test_id == test_id,
         Invitation.used == False,
         Invitation.expires_at > datetime.utcnow()
     ).first()
-    patient = db.query(User).filter(User.id == user_id).first()
-    test = db.query(Test).filter(Test.id == test_id).first()
+
     if existing:
         raise HTTPException(
             status_code=400,
-            detail=f'An invitation for patient {patient.first_name} {patient.last_name} and test "{test.title}" already exists'
+            detail=f'An invitation for patient {user.first_name} {user.last_name} and test "{test.title}" already exists'
         )
-    
     token = str(uuid4())
     expires_at = datetime.utcnow() + timedelta(days=3)
 
@@ -38,16 +44,8 @@ def create_test_invitation(user_email: str, user_id: int, test_id: int, db: Sess
         test_id=test_id,
         expires_at=expires_at
     )
-
     db.add(invitation)
-    db.commit()
-    db.refresh(invitation)
-
     link = f"{INVITE_LINK_BASE_URL}/{token}/verify"
-
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
 
     try:
         send_invite_email(
@@ -55,11 +53,14 @@ def create_test_invitation(user_email: str, user_id: int, test_id: int, db: Sess
             to_name=f"{user.first_name} {user.last_name}",
             invite_link=link
         )
+        db.commit()
+        db.refresh(invitation)
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error sending invite: {str(e)}")
 
     return invitation
+
 
 
 import os
