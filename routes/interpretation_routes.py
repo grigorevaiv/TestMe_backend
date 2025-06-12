@@ -10,9 +10,10 @@ from controllers.interpretation_controller import (
     delete_interpretation,
     add_interpretation
 )
+from auth.check_admin import get_current_admin
 
 
-interpretation_routes = APIRouter()
+interpretation_routes = APIRouter(dependencies=[Depends(get_current_admin)])
 
 @interpretation_routes.get("/{test_id}/interpretations")
 def getTestInterpretations(test_id: int, db: Session = Depends(get_db)):

@@ -2,6 +2,8 @@ from typing import List
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from database.database import get_db
+from auth.check_admin import get_current_admin
+
 
 from models.block_model import BlockSchema
 
@@ -15,7 +17,7 @@ from controllers.block_controller import (
     add_blocks_batch,
 )
 
-block_routes = APIRouter()
+block_routes = APIRouter(dependencies=[Depends(get_current_admin)])
 
 @block_routes.get("/blocks/all")
 def getAllBlocks(db: Session = Depends(get_db)):

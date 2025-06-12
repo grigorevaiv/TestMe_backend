@@ -17,6 +17,7 @@ from models.interpretation_model import Interpretation
 from models.result_model import TestResult, UserAnswer
 from models.user_model import UserSchema, User
 from models.invitation_model import Invitation, InvitationSchema
+from models.admin_model import Admin, AdminSchema
 
 
 from routes.block_routes import block_routes
@@ -66,6 +67,8 @@ app.include_router(invitation_routes, prefix="/patients")
 
 from routes.user_routes import user_routes
 app.include_router(user_routes, prefix="/patients")
+from routes.admin_routes import admin_router
+app.include_router(admin_router, prefix="/admins")
 
 @app.get("/")
 def read_root():

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, File, Request, Body
+from auth.check_admin import get_current_admin
 from database.database import get_db
 from models.tag_test_model import TagTest
 from pydantic import BaseModel
@@ -8,7 +9,7 @@ from sqlalchemy.orm import joinedload, join
 from models.weight_model import Weight, WeightSchema
 from controllers.weights_controller import create_weights, update_weights, get_all_weights
 
-weight_routes = APIRouter()
+weight_routes = APIRouter(dependencies=[Depends(get_current_admin)])
 @weight_routes.get("/{test_id}/weights")
 def get_weights(test_id: int, db: Session = Depends(get_db)):
     """

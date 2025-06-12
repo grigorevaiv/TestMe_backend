@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from uuid import uuid4
 from datetime import datetime, timedelta
 from models.invitation_model import Invitation
+from models.test_model import Test
 from models.user_model import User
 from dotenv import load_dotenv
 load_dotenv()
@@ -20,11 +21,12 @@ def create_test_invitation(user_email: str, user_id: int, test_id: int, db: Sess
         Invitation.used == False,
         Invitation.expires_at > datetime.utcnow()
     ).first()
-
+    patient = db.query(User).filter(User.id == user_id).first()
+    test = db.query(Test).filter(Test.id == test_id).first()
     if existing:
         raise HTTPException(
             status_code=400,
-            detail="An active invitation already exists for this user and test."
+            detail=f'An invitation for patient {patient.first_name} {patient.last_name} and test "{test.title}" already exists'
         )
     
     token = str(uuid4())

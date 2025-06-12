@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from database.database import get_db
+from auth.check_admin import get_current_admin 
 
 from models.answer_model import AnswerSchema
 from controllers.answer_controller import (
@@ -9,7 +10,7 @@ from controllers.answer_controller import (
     batch_update_answers
 )
 
-answer_routes = APIRouter()
+answer_routes = APIRouter(dependencies=[Depends(get_current_admin)])
 
 @answer_routes.post("/answers/batch")
 def batchCreateAnswers(answers: list[AnswerSchema], db: Session = Depends(get_db)):

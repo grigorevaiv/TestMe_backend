@@ -1,5 +1,6 @@
 from typing import List
 from fastapi import APIRouter, HTTPException, Depends
+from auth.check_admin import get_current_admin
 from models.question_model import Question
 from sqlalchemy.orm import Session
 from database.database import get_db
@@ -11,7 +12,7 @@ from controllers.norm_controller import (
     batch_update_norms
 )
 
-norm_routes = APIRouter()
+norm_routes = APIRouter(dependencies=[Depends(get_current_admin)])
 @norm_routes.post("/batch/norms")
 def create_norms(norms: List[NormSchema], db: Session = Depends(get_db)):
     """

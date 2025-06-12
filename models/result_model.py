@@ -1,5 +1,5 @@
-from typing import Dict, List
-from sqlalchemy import Column, Integer, ForeignKey, Float
+from typing import Dict, List, Optional
+from sqlalchemy import Column, DateTime, Integer, ForeignKey, Float
 from sqlalchemy.orm import relationship
 from database.database import Base
 from pydantic import BaseModel
@@ -7,6 +7,7 @@ from pydantic import BaseModel
 class UserAnswerSchema(BaseModel):
     userId: int
     answers: Dict[int, List[int]]
+    token: Optional[str] = None
 
     class Config:
         orm_mode = True
@@ -37,6 +38,7 @@ class TestResult(Base):
     userId = Column(Integer, ForeignKey('users.id'), nullable=False)
     user = relationship("User", back_populates="test_results")
     test = relationship("Test", back_populates="test_results")
+    created_at = Column(DateTime, nullable=False)
     user_answers = relationship("UserAnswer", back_populates="test_result")
     scale_results = relationship("ScaleResult", back_populates="test_result")
 

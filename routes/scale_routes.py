@@ -1,6 +1,7 @@
 from typing import List
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
+from auth.check_admin import get_current_admin
 from database.database import get_db
 
 from models.scale_model import ScaleSchema
@@ -12,7 +13,7 @@ from controllers.scale_controller import (
     create_scales_batch
 )
 
-scale_routes = APIRouter()
+scale_routes = APIRouter(dependencies=[Depends(get_current_admin)])
 
 @scale_routes.post("/{test_id}/scales")
 def createScale(scale: ScaleSchema, db: Session = Depends(get_db)):

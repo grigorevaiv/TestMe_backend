@@ -13,7 +13,7 @@ class UserSchema(BaseModel):
     last_name: str
     birth_date: str | None = None
     is_active: Optional[bool] = True
-    assigned_to_admin: int
+    assigned_to_admin: Optional[int] = None
 
     model_config = {
         "from_attributes": True,
@@ -25,7 +25,7 @@ def to_camel(s: str) -> str:
     parts = s.split('_')
     return parts[0] + ''.join(p.capitalize() for p in parts[1:])
 
-from sqlalchemy import Boolean, Column, Integer, String
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 from database.database import Base
 
@@ -37,9 +37,10 @@ class User(Base):
     last_name = Column(String, nullable=False)
     birth_date = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
-    assigned_to_admin = Column(Integer, nullable=False)
+    assigned_to_admin = Column(Integer, ForeignKey("admins.id"), nullable=False)
     test_results = relationship("TestResult", back_populates="user")
     scale_results = relationship("ScaleResult", back_populates="user")
+    admins = relationship("Admin", back_populates="users")
 
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email}, first_name={self.first_name}, last_name={self.last_name})>"

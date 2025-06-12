@@ -1,4 +1,6 @@
-from fastapi import HTTPException
+from fastapi import Depends, HTTPException
+from auth.check_admin import get_current_admin
+from models.admin_model import Admin
 from models.tag_model import Tag
 from models.tag_test_model import TagTest
 from sqlalchemy.orm import Session
@@ -10,8 +12,11 @@ from sqlalchemy.orm import joinedload
 from models.test_model import Test
 from models.state_model import State
 
-def create_test(test: Test, db: Session):
-    existing_test = db.query(Test).filter(Test.title == test.title).first()
+def create_test(test: Test, db: Session, current_admin: Admin):
+    existing_test = db.query(Test).filter(
+        Test.title == test.title,
+        Test.admin_id == current_admin.id
+        ).first()
     if existing_test:
         raise HTTPException(status_code=400, detail="Test with this title already exists")
 
@@ -20,14 +25,14 @@ def create_test(test: Test, db: Session):
         description=test.description,
         instructions=test.instructions,
         author=test.author if test.author else None,
-        version=test.version if test.version else None
+        version=test.version if test.version else None,
+        admin_id=current_admin.id
     )
 
     db.add(new_test)
     db.commit()
     db.refresh(new_test)
 
-    # 1. Создаем состояние
     initial_status = State(
         testId=new_test.id,
         state='draft',
@@ -37,7 +42,6 @@ def create_test(test: Test, db: Session):
     db.commit()
     db.refresh(initial_status)
 
-    # 2. Нормализуем и убираем дубли
     normalized_tags = set(tag.strip().lower() for tag in test.tags or [])
 
     for tag_name in normalized_tags:
@@ -48,7 +52,6 @@ def create_test(test: Test, db: Session):
             db.commit()
             db.refresh(tag)
 
-        # Проверка связки
         existing_link = db.query(TagTest).filter_by(test_id=new_test.id, tag_id=tag.id).first()
         if not existing_link:
             tag_test = TagTest(test_id=new_test.id, tag_id=tag.id)
@@ -89,11 +92,27 @@ def get_test(test_id: int, db: Session):
     }
 
 
-def get_all_tests(db: Session):
-    tests = db.query(Test).options(joinedload(Test.state)).all()
+def get_all_tests(db: Session, current_admin: Admin):
+    tests = (
+        db.query(Test)
+        .filter(Test.admin_id == current_admin.id)
+        .options(
+            joinedload(Test.state),
+            joinedload(Test.tag_tests).joinedload(TagTest.tag)
+        )
+        .order_by(Test.id.asc())
+        .all()
+    )
+
     if not tests:
         raise HTTPException(status_code=404, detail="No tests found")
+
+    for test in tests:
+        test.tags = [tt.tag.name for tt in test.tag_tests if tt.tag]
+
     return tests
+
+
 
 def update_test(test_id: int, test: Test, db: Session):
     existing_test = (
@@ -106,18 +125,15 @@ def update_test(test_id: int, test: Test, db: Session):
     if not existing_test:
         raise HTTPException(status_code=404, detail="Test not found")
 
-    # Обновление основных полей
     existing_test.title = test.title
     existing_test.description = test.description
     existing_test.instructions = test.instructions
     existing_test.author = test.author if test.author else None
     existing_test.version = test.version if test.version else None
 
-    # Очистка старых связей тегов
     existing_test.tag_tests.clear()
-    db.commit()  # <-- фикс: коммитим удаление связей
+    db.commit() 
 
-    # Добавление новых тегов
     normalized_tags = set(tag.strip().lower() for tag in test.tags or [])
 
     for tag_name in normalized_tags:

@@ -1,21 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from auth.check_admin import get_current_admin
 from database.database import get_db  # твой dependency
 from models.interpretation_model import Interpretation
 from models.result_model import ScaleResult, TestResult, UserAnswerSchema
 from controllers.result_controller import save_test_results, calculate_and_store_test_result
-from models.scale_model import Scale 
+from models.scale_model import Scale
+from models.test_model import Test 
 
-result_routes = APIRouter()
+result_routes = APIRouter(dependencies=[Depends(get_current_admin)])
 
 @result_routes.post("/{test_id}/save")
 def save_results(test_id: int, user_answers: UserAnswerSchema, db: Session = Depends(get_db)):
     return save_test_results(test_id, user_answers, db)
-'''
-@result_routes.get("/{test_id}/calculate")
-def get_latest_result(test_id: int, user_id: int, db: Session = Depends(get_db)):
-    return calculate_and_store_test_result(test_id, user_id, db)
-'''
+
 @result_routes.get("/results/by-user/{user_id}")
 def get_all_results_by_user(user_id: int, db: Session = Depends(get_db)):
     test_results = db.query(TestResult).filter(TestResult.userId == user_id).order_by(TestResult.id.desc()).all()
@@ -90,6 +88,7 @@ def get_all_results_by_user(user_id: int, db: Session = Depends(get_db)):
 
     all_scales = {s.id: s for s in db.query(Scale).all()}
     all_interpretations = {i.id: i for i in db.query(Interpretation).all()}
+    all_tests = {t.id: t for t in db.query(Test).all()}
 
     response = []
 
@@ -106,10 +105,14 @@ def get_all_results_by_user(user_id: int, db: Session = Depends(get_db)):
                 "normalized": sr.normalized,
                 "interpretation": interp.text if interp else "—"
             })
+        
+        test_title = all_tests.get(result.testId).title if result.testId in all_tests else f"Тест {result.testId}"
 
         response.append({
             "testResultId": result.id,
+            "testTitle": test_title,
             "testId": result.testId,
+            "createdAt": result.created_at.isoformat(),
             "results": items
         })
 

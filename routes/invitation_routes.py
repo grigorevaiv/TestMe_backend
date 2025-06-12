@@ -1,12 +1,13 @@
 from datetime import datetime
 from fastapi import APIRouter, Body, HTTPException, Depends
 from sqlalchemy.orm import Session
+from auth.check_admin import get_current_admin
 from database.database import get_db
 
 from models.invitation_model import Invitation, InvitationSchema, CreateInvitationSchema
 from controllers.invitation_controller import create_test_invitation
 from models.user_model import User
-invitation_routes = APIRouter()
+invitation_routes = APIRouter(dependencies=[Depends(get_current_admin)])
 
 @invitation_routes.post("/invitations")
 def createInvitation(
@@ -31,7 +32,6 @@ def verify_invitation(
     if not token or not email:
         raise HTTPException(status_code=400, detail="Token and email are required")
 
-    # Найдём инвайт по токену
     invitation = db.query(Invitation).filter(
         Invitation.token == token,
         Invitation.expires_at > datetime.utcnow(),
@@ -41,7 +41,6 @@ def verify_invitation(
     if not invitation:
         raise HTTPException(status_code=404, detail="Invalid or expired invitation")
 
-    # Найдём пользователя по user_id из инвайта
     user = db.query(User).filter(User.id == invitation.user_id).first()
 
     if not user or user.email.lower() != email.lower():
@@ -50,7 +49,23 @@ def verify_invitation(
     return {
         "userId": user.id,
         "testId": invitation.test_id,
+        "token": invitation.token,
         "email": user.email,
         "firstName": user.first_name,
         "lastName": user.last_name
+    }
+
+@invitation_routes.get("/token-status/{token}")
+def get_token_status(
+    token: str, db: Session = Depends(get_db)
+):
+    invitation = db.query(Invitation).filter(
+        Invitation.token == token
+    ).first()
+
+    if not invitation:
+        raise HTTPException(status_code=404, detail="Invitation not found")
+
+    return {
+        "used": invitation.used
     }

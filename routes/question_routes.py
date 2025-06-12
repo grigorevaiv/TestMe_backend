@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import List
 
+from auth.check_admin import get_current_admin
 from database.database import get_db
 from models.question_model import Question, QuestionSchema
 from controllers.question_controller import (
@@ -14,7 +15,7 @@ from controllers.question_controller import (
     get_questions_by_test
 )
 
-question_routes = APIRouter()
+question_routes = APIRouter(dependencies=[Depends(get_current_admin)])
 
 
 @question_routes.get("/questions/all")

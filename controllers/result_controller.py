@@ -1,6 +1,8 @@
+from datetime import datetime
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from models.interpretation_model import Interpretation
+from models.invitation_model import Invitation
 from models.norm_model import Norm
 from models.result_model import ScaleResult, TestResult, TestResultSchema, UserAnswerSchema, UserAnswer
 from models.block_model import Block
@@ -12,10 +14,23 @@ from models.weight_model import Weight
 def save_test_results(test_id: int, user_answers: UserAnswerSchema, db: Session):
     if user_answers.userId is None:
         raise HTTPException(status_code=400, detail="Missing userId in request body")
+    
+    if not user_answers.token:
+        raise HTTPException(status_code=400, detail="Missing token in request body")
 
-    result = TestResult(testId=test_id, userId=user_answers.userId)
+    invitation = db.query(Invitation).filter(Invitation.token == user_answers.token).first()
+    if not invitation:
+        raise HTTPException(status_code=404, detail="Invitation not found")
+
+    if invitation.used:
+        raise HTTPException(status_code=400, detail="Invitation already used")
+
+    invitation.used = True
+    db.commit()
+
+    result = TestResult(testId=test_id, userId=user_answers.userId, created_at=datetime.now())
     db.add(result)
-    db.flush()  # чтобы получить result.id
+    db.flush()
 
     user_answers_to_save = []
 
@@ -39,54 +54,6 @@ def save_test_results(test_id: int, user_answers: UserAnswerSchema, db: Session)
 
 
     return {"testSaved": "ok", "resultId": result.id, "finalResult": final_result}
-
-# это заглушка пока не привязанная к пользователю
-'''
-def calculate_latest_test_result(test_id: int, db: Session):
-    result = (
-        db.query(TestResult)
-        .filter(TestResult.testId == test_id)
-        .order_by(TestResult.id.desc())
-        .first()
-    )
-
-    if not result:
-        raise HTTPException(status_code=404, detail="No results found for this test")
-
-    user_answers = db.query(UserAnswer).filter(UserAnswer.testResultId == result.id).all()
-    answer_ids = [ua.answerId for ua in user_answers]
-
-    weights = db.query(Weight).filter(Weight.answerId.in_(answer_ids)).all()
-
-    # Суммируем баллы по шкалам
-    scale_scores = defaultdict(int)
-    for w in weights:
-        scale_scores[w.scaleId] += w.value
-
-    norms = db.query(Norm).filter(Norm.scaleId.in_(scale_scores.keys())).all()
-    norm_map = {norm.scaleId: norm for norm in norms}
-
-    results = {}
-    for scale_id, raw_score in scale_scores.items():
-        norm = norm_map.get(scale_id)
-        if norm and norm.type == "sten":
-            ten_score = round(5 + 2 * (raw_score - norm.mean) / norm.stdDev)
-            ten_score = max(1, min(10, ten_score))
-            results[scale_id] = {
-                "raw": raw_score,
-                "normalized": ten_score
-            }
-        else:
-            results[scale_id] = {
-                "raw": raw_score,
-                "normalized": None
-            }
-
-    return {
-        "testResultId": result.id,
-        "results": results
-    }
-'''
 
 def calculate_and_store_test_result(test_id: int, user_id: int, db: Session):
     result = (
@@ -124,7 +91,6 @@ def calculate_and_store_test_result(test_id: int, user_id: int, db: Session):
             normalized = round(5 + 2 * (raw_score - norm.mean) / norm.stdDev)
             normalized = max(1, min(10, normalized))
 
-        # Подгружаем интерпретации и определяем подходящую
         interpretation = None
         if normalized is not None:
             interpretations = db.query(Interpretation).filter(
@@ -136,7 +102,6 @@ def calculate_and_store_test_result(test_id: int, user_id: int, db: Session):
             else:
                 interpretation = select_interpretation_by_levels(interpretations, normalized)
 
-        # Сохраняем результат
         scale_result = ScaleResult(
             testResultId=result.id,
             testId=result.testId,
@@ -171,10 +136,8 @@ def select_interpretation_by_levels(interpretations, normalized: int):
     if count == 0:
         return None
 
-    # Разбиваем шкалу от 1 до 10 на count интервалов
-    step = 9 / count  # от 1 до 10 — длина = 9
+    step = 9 / count
 
-    # Найдём номер интервала (от 0 до count-1)
     index = min(int((normalized - 1) / step), count - 1)
 
     target_level = levels[index]
@@ -189,17 +152,14 @@ from fastapi import HTTPException
 from collections import defaultdict
 
 def read_test_results(test_id: int, db: Session):
-    # Все результаты по тесту
     results_ids = db.query(TestResult).filter(TestResult.testId == test_id).all()
     if not results_ids:
         raise HTTPException(status_code=404, detail="No results found for this test")
 
     result_ids = [r.id for r in results_ids]
 
-    # Все ответы пользователей по этим результатам
     user_answers = db.query(UserAnswer).filter(UserAnswer.testResultId.in_(result_ids)).all()
 
-    # Все вопросы этого теста
     blocks = db.query(Block).filter(Block.testId == test_id).all()
     block_ids = [b.id for b in blocks]
 
@@ -208,15 +168,11 @@ def read_test_results(test_id: int, db: Session):
 
     answers = db.query(Answer).filter(Answer.questionId.in_(question_ids)).all()
 
-    # Маппинг answerId -> questionId
     answer_to_question = {a.id: a.questionId for a in answers}
-
-    # Готовим частоты: questionId -> {answerId -> 0}
     frequencies = defaultdict(lambda: defaultdict(int))
     for answer in answers:
         frequencies[answer.questionId][answer.id] = 0
 
-    # Считаем
     for ua in user_answers:
         answer_id = ua.answerId
         question_id = answer_to_question.get(answer_id)

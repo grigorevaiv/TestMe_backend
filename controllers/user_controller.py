@@ -1,17 +1,20 @@
 from typing import List
-from fastapi import HTTPException
+from fastapi import Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from auth.check_admin import get_current_admin
+from models.admin_model import Admin
 from models.user_model import User, UserSchema
 
-def create_user(user: User, db: Session):
+def create_user(user: User, db: Session, current_admin: Admin):
     
     new_user = User(
         email=user.email,
         first_name=user.first_name,
         last_name=user.last_name,
+        birth_date=user.birth_date,
         is_active=user.is_active,
-        assigned_to_admin=user.assigned_to_admin
+        assigned_to_admin=current_admin.id
     )
     
     db.add(new_user)
@@ -20,8 +23,8 @@ def create_user(user: User, db: Session):
     
     return new_user
 
-def get_users(db: Session):
-    users = db.query(User).all()
+def get_users(db: Session, current_admin: Admin):
+    users = db.query(User).filter(User.assigned_to_admin == current_admin.id).order_by(User.id.asc()).all()
     if not users:
         raise HTTPException(status_code=404, detail="No users found")
     
@@ -39,7 +42,7 @@ def update_user(user_id: int, user_data: UserSchema, db: Session):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    for key, value in user_data.model_dump(exclude={'id'}).items():
+    for key, value in user_data.model_dump(exclude={'id', 'assigned_to_admin'}).items():
         setattr(user, key, value)
     
     db.commit()
