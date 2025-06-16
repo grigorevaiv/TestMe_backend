@@ -167,34 +167,36 @@ def update_questions(
 
 class DeleteImagePayload(BaseModel):
     imageUrl: str
+    questionId: int
+
 
 from urllib.parse import urlparse
 
 def delete_image(payload: DeleteImagePayload, db: Session):
-    image_url = payload.imageUrl
-    if not image_url:
+    if not payload.imageUrl:
         raise HTTPException(status_code=400, detail="No image URL provided")
-    parsed = urlparse(image_url)
+
+    parsed = urlparse(payload.imageUrl)
     object_path = parsed.path.split(f'/object/public/{SUPABASE_BUCKET}/')[-1]
+
     delete_url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_BUCKET}/remove"
     headers = {
         "Authorization": f"Bearer {SUPABASE_KEY}",
         "apikey": SUPABASE_KEY,
         "Content-Type": "application/json"
     }
-    response = requests.post(delete_url, headers=headers, json={
-        "prefixes": [object_path]
-    })
 
+    response = requests.post(delete_url, headers=headers, json={"prefixes": [object_path]})
     if response.status_code != 200:
-        raise HTTPException(500, detail=f"Failed to delete from Supabase: {response.text}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete from Supabase: {response.text}")
 
     question = db.query(Question).filter(Question.id == payload.questionId).first()
     if question:
         question.imageUrl = None
         db.commit()
 
-    return {"status": "deleted"}
+    return {"status": "deleted", "questionId": payload.questionId}
+
 
 
 def get_questions_by_test(test_id: int, db: Session):
