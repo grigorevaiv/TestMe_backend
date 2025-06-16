@@ -44,7 +44,7 @@ app.add_middleware(
 )
 
 from routes.question_routes import question_routes
-app.mount("/static", StaticFiles(directory="static"), name="static")
+#app.mount("/static", StaticFiles(directory="static"), name="static")
 app.include_router(test_routes, prefix="/tests")
 app.include_router(block_routes, prefix="/tests")
 app.include_router(common_routes, prefix="/tests")

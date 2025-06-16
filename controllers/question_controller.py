@@ -2,6 +2,8 @@ import shutil
 import os
 from typing import List
 from uuid import uuid4
+from dotenv import load_dotenv
+import requests
 
 from fastapi import Form, HTTPException, UploadFile, File, Request, Body
 from models.tag_test_model import TagTest
@@ -13,7 +15,11 @@ from models.answer_model import Answer
 from models.block_model import Block
 from models.question_model import Question, QuestionSchema
 from models.test_model import Test
+load_dotenv()
 
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET")
 
 def get_all_questions(db: Session):
     questions = (
@@ -41,7 +47,7 @@ def get_all_questions(db: Session):
             "testTitle": test.title,
         })
     return result
-
+'''
 def upload_temp_image(
     db: Session,
     file: UploadFile = File(...),
@@ -65,7 +71,7 @@ def upload_temp_image(
     public_url = f"/static/tmp/{dir_name}/{filename}".replace("\\", "/")
 
     return {"imageUrl": public_url}
-
+'''
 import re
 
 def sanitize_filename(name: str) -> str:
@@ -76,7 +82,7 @@ def build_test_dir_name(test_id: int, title: str) -> str:
     clean = sanitize_filename(clean)
     clean = re.sub(r'_+', '_', clean)
     return f"{test_id}_{clean}"
-
+'''
 def create_questions(
     request: Request,
     test_id: int,
@@ -103,7 +109,7 @@ def create_questions(
             print(f"[DEBUG] Checking if file exists: {src}")
             print(f"[DEBUG] Exists? {os.path.exists(src)}")
             if os.path.exists(src):
-                print(f"📦 Moving image from {src} to {dst}")
+                print(f"Moving image from {src} to {dst}")
                 shutil.move(src, dst)
                 public_path = f"/static/{dir_name}/{filename}"
                 q.imageUrl = str(request.base_url).rstrip("/") + public_path
@@ -152,7 +158,7 @@ def update_questions(
             print(f"[DEBUG] Checking if file exists: {src}")
             print(f"[DEBUG] Exists? {os.path.exists(src)}")
             if os.path.exists(src):
-                print(f"📦 Moving image from {src} to {dst}")
+                print(f"Moving image from {src} to {dst}")
                 shutil.move(src, dst)
                 public_path = f"/static/{dir_name}/{filename}"
                 q.imageUrl = str(request.base_url).rstrip("/") + public_path
@@ -167,21 +173,105 @@ def update_questions(
     db.commit()
 
     return {"status": "updated", "count": updated_count}
+'''
+
+def upload_temp_image(
+    db: Session,
+    file: UploadFile = File(...),
+    test_id: int = Form(...)
+):
+    test = db.query(Test).filter(Test.id == test_id).first()
+    if not test:
+        raise HTTPException(status_code=404, detail="Test not found")
+
+    ext = file.filename.split('.')[-1]
+    filename = f"{uuid4().hex}.{ext}"
+    file_bytes = file.file.read()
+
+    object_path = f"{build_test_dir_name(test.id, test.title)}/{filename}"
+
+    upload_url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_BUCKET}/{object_path}"
+    headers = {
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": file.content_type,
+        "apikey": SUPABASE_KEY,
+    }
+
+    r = requests.put(upload_url, headers=headers, data=file_bytes)
+    if r.status_code != 200:
+        raise HTTPException(status_code=500, detail=f"Upload failed: {r.text}")
+
+    public_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{object_path}"
+    return {"imageUrl": public_url}
+
+def create_questions(
+    test_id: int,
+    questions: List[QuestionSchema],
+    db: Session
+):
+    test = db.query(Test).filter(Test.id == test_id).first()
+    if not test:
+        raise HTTPException(status_code=404, detail="Test not found")
+
+    for q in questions:
+        new_question = Question(**q.dict())
+        db.add(new_question)
+
+    db.commit()
+    return {"status": "created", "count": len(questions)}
+
+def update_questions(
+    test_id: int,
+    questions: List[QuestionSchema],
+    db: Session
+):
+    test = db.query(Test).filter(Test.id == test_id).first()
+    if not test:
+        raise HTTPException(status_code=404, detail="Test not found")
+
+    updated_count = 0
+
+    for q in questions:
+        if not q.id:
+            raise HTTPException(status_code=400, detail="Missing ID for update")
+
+        existing = db.query(Question).filter(Question.id == q.id).first()
+        if not existing:
+            raise HTTPException(status_code=404, detail=f"Question with ID {q.id} not found")
+
+        for key, value in q.dict(exclude_unset=True).items():
+            setattr(existing, key, value)
+
+        updated_count += 1
+
+    db.commit()
+    return {"status": "updated", "count": updated_count}
 
 
 
 class DeleteImagePayload(BaseModel):
     imageUrl: str
 
-def delete_image(payload: DeleteImagePayload, db: Session):
-    relative_path = payload.imageUrl.lstrip("/")
-    file_path = os.path.join(os.getcwd(), relative_path)
+from urllib.parse import urlparse
 
-    if os.path.isfile(file_path):
-        try:
-            os.remove(file_path)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to delete file: {str(e)}")
+def delete_image(payload: DeleteImagePayload, db: Session):
+    image_url = payload.imageUrl
+    if not image_url:
+        raise HTTPException(status_code=400, detail="No image URL provided")
+    parsed = urlparse(image_url)
+    object_path = parsed.path.split(f'/object/public/{SUPABASE_BUCKET}/')[-1]
+    delete_url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_BUCKET}/remove"
+    headers = {
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "apikey": SUPABASE_KEY,
+        "Content-Type": "application/json"
+    }
+    response = requests.post(delete_url, headers=headers, json={
+        "prefixes": [object_path]
+    })
+
+    if response.status_code != 200:
+        raise HTTPException(500, detail=f"Failed to delete from Supabase: {response.text}")
 
     question = db.query(Question).filter(Question.id == payload.questionId).first()
     if question:
