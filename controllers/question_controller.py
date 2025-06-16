@@ -38,6 +38,7 @@ def get_all_questions(db: Session):
             "isActive": q.isActive,
             "blockId": q.blockId,
             "tagsIds": tags,
+            "testTitle": test.title,
         })
     return result
 

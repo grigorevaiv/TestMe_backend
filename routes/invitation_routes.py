@@ -4,8 +4,10 @@ from sqlalchemy.orm import Session
 from auth.check_admin import get_current_admin
 from database.database import get_db
 
+from models.admin_model import Admin
 from models.invitation_model import Invitation, InvitationSchema, CreateInvitationSchema
 from controllers.invitation_controller import create_test_invitation
+from models.test_model import Test
 from models.user_model import User
 invitation_routes = APIRouter(dependencies=[Depends(get_current_admin)])
 
@@ -68,4 +70,32 @@ def get_token_status(
 
     return {
         "used": invitation.used
+    }
+
+@invitation_routes.get("/invitations/{token}")
+def get_invitation_info(token: str, db: Session = Depends(get_db)):
+    invitation = db.query(Invitation).filter(
+        Invitation.token == token,
+        Invitation.expires_at > datetime.utcnow()
+    ).first()
+
+    if not invitation:
+        raise HTTPException(status_code=404, detail="Invitation not found or expired")
+
+    test = db.query(Test).filter(Test.id == invitation.test_id).first()
+    if not test:
+        raise HTTPException(status_code=500, detail="Test not found")
+
+    admin = db.query(Admin).filter(Admin.id == test.admin_id).first()
+    if not admin:
+        raise HTTPException(status_code=500, detail="Admin not found")
+    
+    user = db.query(User).filter(User.id == invitation.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return {
+        "userFullName": f"{user.first_name} {user.last_name}",
+        "testTitle": test.title,
+        "invitedBy": f"{admin.first_name} {admin.last_name}"
     }

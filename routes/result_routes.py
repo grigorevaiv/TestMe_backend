@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from auth.check_admin import get_current_admin
 from database.database import get_db  # твой dependency
+from models.block_model import Block
 from models.interpretation_model import Interpretation
 from models.result_model import ScaleResult, TestResult, UserAnswerSchema
 from controllers.result_controller import save_test_results, calculate_and_store_test_result
@@ -90,6 +91,7 @@ def get_all_results_by_user(user_id: int, db: Session = Depends(get_db)):
     all_scales = {s.id: s for s in db.query(Scale).all()}
     all_interpretations = {i.id: i for i in db.query(Interpretation).all()}
     all_tests = {t.id: t for t in db.query(Test).all()}
+    all_blocks = {b.id: b for b in db.query(Block).all()}
 
     response = []
 
@@ -100,13 +102,24 @@ def get_all_results_by_user(user_id: int, db: Session = Depends(get_db)):
         for sr in scales_for_result:
             scale = all_scales.get(sr.scaleId)
             interp = all_interpretations.get(sr.interpretationId)
+            block = all_blocks.get(scale.blockId) if scale and scale.blockId else None
+
+            interp_for_scale = [
+                i for i in all_interpretations.values()
+                if i.scaleId == sr.scaleId and i.level is not None
+            ]
+            max_level = max((i.level for i in interp_for_scale), default=None)
 
             items.append({
-                "scaleName": f"{scale.pole1} ↔ {scale.pole2}" if scale and scale.pole2 else (scale.pole1 if scale else f"Шкала {sr.scaleId}"),
+                "scalePole1": scale.pole1 if scale else f"Шкала {sr.scaleId}",
+                "scalePole2": scale.pole2 if scale and scale.pole2 else None,
                 "normalized": sr.normalized,
-                "interpretation": interp.text if interp else "—"
+                "interpretation": interp.text if interp else "—",
+                "level": interp.level if interp else None,
+                "block": block.name if block else None,
+                "maxLevel": max_level
             })
-        
+
         test_title = all_tests.get(result.testId).title if result.testId in all_tests else f"Тест {result.testId}"
 
         response.append({
