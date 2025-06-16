@@ -193,12 +193,16 @@ def upload_temp_image(
 
     try:
         content = file.file.read()
+        print(f"[DEBUG] Uploading to: {path_in_bucket}")
+        print(f"[DEBUG] File content type: {file.content_type}")
+        
         res = supabase.storage.from_(SUPABASE_BUCKET).upload(
             path_in_bucket,
             content,
             {"content-type": file.content_type, "upsert": True}
         )
     except Exception as e:
+        print(f"[ERROR] Supabase upload failed: {e}")
         raise HTTPException(status_code=500, detail=f"Supabase upload error: {e}")
 
     public_url = supabase.storage.from_(SUPABASE_BUCKET).get_public_url(path_in_bucket)
