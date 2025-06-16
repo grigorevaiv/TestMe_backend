@@ -70,11 +70,16 @@ app.include_router(user_routes, prefix="/patients")
 from routes.admin_routes import admin_router
 app.include_router(admin_router, prefix="/admins")
 
+@app.get("/healthz")
+def healthcheck():
+    return {"status": "ok"}
+
 @app.get("/")
 def read_root():
     return {"Hello": "World"}
-
+import uvicorn
+import os
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)

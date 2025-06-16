@@ -84,98 +84,7 @@ def build_test_dir_name(test_id: int, title: str) -> str:
     clean = sanitize_filename(clean)
     clean = re.sub(r'_+', '_', clean)
     return f"{test_id}_{clean}"
-'''
-def create_questions(
-    request: Request,
-    test_id: int,
-    questions: List[QuestionSchema],
-    db: Session
-):
-    test = db.query(Test).filter(Test.id == test_id).first()
-    if not test:
-        raise HTTPException(status_code=404, detail="Test not found")
 
-    dir_name = build_test_dir_name(test.id, test.title)
-    dir_path = os.path.join("static", dir_name)
-    tmp_dir_path = os.path.join("static", "tmp", dir_name)
-
-    os.makedirs(dir_path, exist_ok=True)
-
-    for q in questions:
-        if q.imageUrl and "tmp/" in q.imageUrl:
-            filename = q.imageUrl.split("/")[-1]
-            src = os.path.abspath(os.path.join(tmp_dir_path, filename))
-            dst = os.path.abspath(os.path.join(dir_path, filename))
-            print(f"[ABS PATH] src = {src}")
-            print(f"[ABS PATH] dst = {dst}")
-            print(f"[DEBUG] Checking if file exists: {src}")
-            print(f"[DEBUG] Exists? {os.path.exists(src)}")
-            if os.path.exists(src):
-                print(f"Moving image from {src} to {dst}")
-                shutil.move(src, dst)
-                public_path = f"/static/{dir_name}/{filename}"
-                q.imageUrl = str(request.base_url).rstrip("/") + public_path
-            else:
-                print(f"[!] Temporary image not found: {src}")
-
-        new_question = Question(**q.dict())
-        db.add(new_question)
-
-    db.commit()
-
-    return {"status": "created", "count": len(questions)}
-
-def update_questions(
-    request: Request,
-    test_id: int,
-    questions: List[QuestionSchema],
-    db: Session
-):
-    test = db.query(Test).filter(Test.id == test_id).first()
-    if not test:
-        raise HTTPException(status_code=404, detail="Test not found")
-
-    dir_name = build_test_dir_name(test.id, test.title)
-    dir_path = os.path.join("static", dir_name)
-    tmp_dir_path = os.path.join("static", "tmp", dir_name)
-
-    os.makedirs(dir_path, exist_ok=True)
-
-    updated_count = 0
-
-    for q in questions:
-        if not q.id:
-            raise HTTPException(status_code=400, detail="Missing ID for update")
-
-        existing = db.query(Question).filter(Question.id == q.id).first()
-        if not existing:
-            raise HTTPException(status_code=404, detail=f"Question with ID {q.id} not found")
-
-        if q.imageUrl and "tmp/" in q.imageUrl:
-            filename = q.imageUrl.split("/")[-1]
-            src = os.path.abspath(os.path.join(tmp_dir_path, filename))
-            dst = os.path.abspath(os.path.join(dir_path, filename))
-            print(f"[ABS PATH] src = {src}")
-            print(f"[ABS PATH] dst = {dst}")
-            print(f"[DEBUG] Checking if file exists: {src}")
-            print(f"[DEBUG] Exists? {os.path.exists(src)}")
-            if os.path.exists(src):
-                print(f"Moving image from {src} to {dst}")
-                shutil.move(src, dst)
-                public_path = f"/static/{dir_name}/{filename}"
-                q.imageUrl = str(request.base_url).rstrip("/") + public_path
-            else:
-                print(f"[!] Temporary image not found: {src}")
-
-        for key, value in q.dict(exclude_unset=True).items():
-            setattr(existing, key, value)
-
-        updated_count += 1
-
-    db.commit()
-
-    return {"status": "updated", "count": updated_count}
-'''
 
 def upload_temp_image(
     db: Session,
@@ -188,8 +97,7 @@ def upload_temp_image(
 
     ext = file.filename.split('.')[-1]
     filename = f"{uuid4().hex}.{ext}"
-    folder = build_test_dir_name(test.id, test.title)
-    path_in_bucket = f"{folder}/{filename}"
+    path_in_bucket = filename
 
     try:
         content = file.file.read()
@@ -219,7 +127,9 @@ def create_questions(
         raise HTTPException(status_code=404, detail="Test not found")
 
     for q in questions:
-        new_question = Question(**q.dict())
+        data = q.dict(exclude_unset=False)
+        print("[DEBUG] incoming question:", data)
+        new_question = Question(**data)
         db.add(new_question)
 
     db.commit()
@@ -258,7 +168,7 @@ class DeleteImagePayload(BaseModel):
     imageUrl: str
 
 from urllib.parse import urlparse
-
+'''
 def delete_image(payload: DeleteImagePayload, db: Session):
     image_url = payload.imageUrl
     if not image_url:
@@ -311,3 +221,97 @@ def delete_question(question_id: int, db: Session):
     db.commit()
 
     return {"status": "deleted", "questionId": question_id}
+'''
+
+'''
+def create_questions(
+    request: Request,
+    test_id: int,
+    questions: List[QuestionSchema],
+    db: Session
+):
+    test = db.query(Test).filter(Test.id == test_id).first()
+    if not test:
+        raise HTTPException(status_code=404, detail="Test not found")
+
+    dir_name = build_test_dir_name(test.id, test.title)
+    dir_path = os.path.join("static", dir_name)
+    tmp_dir_path = os.path.join("static", "tmp", dir_name)
+
+    os.makedirs(dir_path, exist_ok=True)
+
+    for q in questions:
+        if q.imageUrl and "tmp/" in q.imageUrl:
+            filename = q.imageUrl.split("/")[-1]
+            src = os.path.abspath(os.path.join(tmp_dir_path, filename))
+            dst = os.path.abspath(os.path.join(dir_path, filename))
+            print(f"[ABS PATH] src = {src}")
+            print(f"[ABS PATH] dst = {dst}")
+            print(f"[DEBUG] Checking if file exists: {src}")
+            print(f"[DEBUG] Exists? {os.path.exists(src)}")
+            if os.path.exists(src):
+                print(f"Moving image from {src} to {dst}")
+                shutil.move(src, dst)
+                public_path = f"/static/{dir_name}/{filename}"
+                q.imageUrl = str(request.base_url).rstrip("/") + public_path
+            else:
+                print(f"[!] Temporary image not found: {src}")
+
+        new_question = Question(**q.dict())
+        db.add(new_question)
+
+    db.commit()
+
+    return {"status": "created", "count": len(questions)}
+
+def update_questions(
+    request: Request,
+    test_id: int,
+    questions: List[QuestionSchema],
+    db: Session
+):
+    test = db.query(Test).filter(Test.id == test_id).first()
+    if not test:
+        raise HTTPException(status_code=404, detail="Test not found")
+
+    dir_name = build_test_dir_name(test.id, test.title)
+    dir_path = os.path.join("static", dir_name)
+    tmp_dir_path = os.path.join("static", "tmp", dir_name)
+
+    os.makedirs(dir_path, exist_ok=True)
+
+    updated_count = 0
+
+    for q in questions:
+        if not q.id:
+            raise HTTPException(status_code=400, detail="Missing ID for update")
+
+        existing = db.query(Question).filter(Question.id == q.id).first()
+        if not existing:
+            raise HTTPException(status_code=404, detail=f"Question with ID {q.id} not found")
+
+        if q.imageUrl and "tmp/" in q.imageUrl:
+            filename = q.imageUrl.split("/")[-1]
+            src = os.path.abspath(os.path.join(tmp_dir_path, filename))
+            dst = os.path.abspath(os.path.join(dir_path, filename))
+            print(f"[ABS PATH] src = {src}")
+            print(f"[ABS PATH] dst = {dst}")
+            print(f"[DEBUG] Checking if file exists: {src}")
+            print(f"[DEBUG] Exists? {os.path.exists(src)}")
+            if os.path.exists(src):
+                print(f"Moving image from {src} to {dst}")
+                shutil.move(src, dst)
+                public_path = f"/static/{dir_name}/{filename}"
+                q.imageUrl = str(request.base_url).rstrip("/") + public_path
+            else:
+                print(f"[!] Temporary image not found: {src}")
+
+        for key, value in q.dict(exclude_unset=True).items():
+            setattr(existing, key, value)
+
+        updated_count += 1
+
+    db.commit()
+
+    return {"status": "updated", "count": updated_count}
+'''
