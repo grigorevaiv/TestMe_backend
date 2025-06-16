@@ -4,7 +4,7 @@ from typing import List
 from uuid import uuid4
 from dotenv import load_dotenv
 import requests
-
+from supabase import create_client, Client
 from fastapi import Form, HTTPException, UploadFile, File, Request, Body
 from models.tag_test_model import TagTest
 from pydantic import BaseModel
@@ -20,6 +20,8 @@ load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET")
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def get_all_questions(db: Session):
     questions = (
@@ -186,22 +188,21 @@ def upload_temp_image(
 
     ext = file.filename.split('.')[-1]
     filename = f"{uuid4().hex}.{ext}"
-    file_bytes = file.file.read()
+    folder = build_test_dir_name(test.id, test.title)
+    path_in_bucket = f"{folder}/{filename}"
 
-    object_path = f"{build_test_dir_name(test.id, test.title)}/{filename}"
+    try:
+        content = file.file.read()
+        res = supabase.storage.from_(SUPABASE_BUCKET).upload(
+            path_in_bucket,
+            content,
+            {"content-type": file.content_type, "upsert": True}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Supabase upload error: {e}")
 
-    upload_url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_BUCKET}/{object_path}"
-    headers = {
-        "Authorization": f"Bearer {SUPABASE_KEY}",
-        "Content-Type": file.content_type,
-        "apikey": SUPABASE_KEY,
-    }
+    public_url = supabase.storage.from_(SUPABASE_BUCKET).get_public_url(path_in_bucket)
 
-    r = requests.put(upload_url, headers=headers, data=file_bytes)
-    if r.status_code != 200:
-        raise HTTPException(status_code=500, detail=f"Upload failed: {r.text}")
-
-    public_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{object_path}"
     return {"imageUrl": public_url}
 
 def create_questions(
