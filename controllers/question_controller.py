@@ -147,6 +147,7 @@ def update_questions(
     updated_count = 0
 
     for q in questions:
+        print("[DEBUG] incoming question:", q)
         if not q.id:
             raise HTTPException(status_code=400, detail="Missing ID for update")
 
