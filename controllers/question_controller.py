@@ -169,7 +169,7 @@ class DeleteImagePayload(BaseModel):
     imageUrl: str
 
 from urllib.parse import urlparse
-'''
+
 def delete_image(payload: DeleteImagePayload, db: Session):
     image_url = payload.imageUrl
     if not image_url:
@@ -222,7 +222,7 @@ def delete_question(question_id: int, db: Session):
     db.commit()
 
     return {"status": "deleted", "questionId": question_id}
-'''
+
 
 '''
 def create_questions(
