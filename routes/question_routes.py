@@ -46,7 +46,6 @@ def upload_temp_image_route(
 
 @question_routes.post("/{test_id}/questions/batch")
 def create_questions_route(
-    request: Request,
     test_id: int,
     questions: List[QuestionSchema],
     db: Session = Depends(get_db)
@@ -55,14 +54,13 @@ def create_questions_route(
     Create multiple questions for a test.
     """
     try:
-        return create_questions(request, test_id, questions, db)
+        return create_questions(test_id, questions, db)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @question_routes.put("/{test_id}/questions/batch")
 def update_questions_route(
-    request: Request,
     test_id: int,
     questions: List[QuestionSchema],
     db: Session = Depends(get_db)
@@ -71,7 +69,7 @@ def update_questions_route(
     Update multiple questions for a test.
     """
     try:
-        return update_questions(request, test_id, questions, db)
+        return update_questions(test_id, questions, db)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
