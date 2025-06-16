@@ -199,7 +199,7 @@ def upload_temp_image(
         res = supabase.storage.from_(SUPABASE_BUCKET).upload(
             path_in_bucket,
             content,
-            {"content-type": file.content_type, "upsert": True}
+            {"content-type": file.content_type}
         )
     except Exception as e:
         print(f"[ERROR] Supabase upload failed: {e}")
